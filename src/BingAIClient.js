@@ -11,6 +11,10 @@ import HttpsProxyAgent from 'https-proxy-agent';
  */
 const genRanHex = size => [...Array(size)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
 
+const composeTone = ['professional', 'casual', 'enthusiastic', 'informational', 'funny'];
+const composeFormat = ['paragraph', 'email', 'blog post', 'ideas'];
+const composeLength = ['short', 'medium', 'long'];
+
 export default class BingAIClient {
     constructor(options) {
         const cacheOptions = options.cache || {};
@@ -145,10 +149,12 @@ export default class BingAIClient {
             conversationSignature,
             clientId,
             onProgress,
+            messageType,
         } = opts;
 
+        const { tone = (messageType === 'compose' ? 1 : 2), format = 1, length = 2 } = opts.clientOptions;
+
         const {
-            toneStyle = 'balanced', // or creative, precise
             invocationId = 0,
             parentMessageId = jailbreakConversationId === true ? crypto.randomUUID() : null,
             abortController = new AbortController(),
@@ -245,34 +251,82 @@ export default class BingAIClient {
 
         const ws = await this.createWebSocketConnection();
 
-        let toneOption;
-        if (toneStyle === 'creative') {
-            toneOption = 'h3imaginative';
-        } else if (toneStyle === 'precise') {
-            toneOption = 'h3precise';
-        } else {
-            toneOption = 'harmonyv3';
+        let optionsSets = [];
+        let sliceIds = [];
+        let traceId = '';
+        if (messageType === 'chat') {
+            let toneOption;
+            if (tone === 1) {
+                toneOption = 'h3imaginative'
+            } else if (tone === 2) {
+                toneOption = 'h3precise'
+            } else {
+                toneOption = 'harmonyv3'
+            }
+
+            optionsSets = [
+                'nlu_direct_response_filter',
+                'deepleo',
+                'enable_debug_commands',
+                'disable_emoji_spoken_text',
+                'responsible_ai_policy_235',
+                'enablemm',
+                toneOption,
+                'dtappid',
+                'cricinfo',
+                'cricinfov2',
+                'dv3sugg',
+            ]
+
+            sliceIds = [
+                "0310wlthrot",
+                "302blcklists0",
+                "308enbsd",
+                "308jbf",
+                "314glprompts0",
+                "linkimgintf",
+                "perfinstcf",
+                "revdv3cf",
+                "scfraithct",
+                "sempserpnolen",
+                "sydperfinput",
+                "308sdcnt2",
+                "scraith70"
+            ]
+
+            traceId = genRanHex(32);
         }
+        
+        if (messageType === 'compose') {
+            traceId = undefined;
+            optionsSets = [
+                'nlu_direct_response_filter',
+                'deepleo',
+                'enable_debug_commands',
+                'disable_emoji_spoken_text',
+                'responsible_ai_policy_235',
+                'enablemm',
+                'h3imaginative',
+                'nocache',
+                'nosugg'
+            ]
+
+            if (invocationId === 0) {
+                const comLen = composeLength[length - 1];
+                const comTone = composeTone[tone - 1];
+                const comFormat = composeFormat[format - 1];
+                message = `Please write a *${comLen}* *${comFormat}* in a *${comTone}* style about \`${message}\`. Please wrap the blog post in a markdown codeblock.`;
+            }
+        }
+
+
+
 
         const obj = {
             arguments: [
                 {
                     source: 'cib',
-                    optionsSets: [
-                        'nlu_direct_response_filter',
-                        'deepleo',
-                        'enable_debug_commands',
-                        'disable_emoji_spoken_text',
-                        'responsible_ai_policy_235',
-                        'enablemm',
-                        toneOption,
-                        // 'dtappid',
-                        // 'cricinfo',
-                        // 'cricinfov2',
-                        // 'dv3sugg',
-                        'nocache', // for conversation testing
-                        'nosugg', // for conversation testing
-                    ],
+                    optionsSets,
                     allowedMessageTypes: [
                         "Chat",
                         "InternalSearchQuery",
@@ -285,18 +339,17 @@ export default class BingAIClient {
                         "GenerateContentQuery",
                         "SearchQuery"
                     ],
-                    sliceIds: [
-                        // '222dtappid',
-                        // '225cricinfo',
-                        // '224locals0',
-                    ],
-                    // traceId: genRanHex(32),
+                    sliceIds,
+                    traceId,
                     isStartOfSession: invocationId === 0,
                     message: {
                         author: 'user',
                         text: message,
                         messageType: 'Chat',
-                        inputMethod: "Keyboard",
+                        inputMethod: 'Keyboard',
+                        locale: 'vi-VN',
+                        market: 'en-US',
+                        region: 'WW',
                     },
                     conversationSignature,
                     participant: {
@@ -356,6 +409,12 @@ export default class BingAIClient {
                         if (!messages?.length || messages[0].author !== 'bot') {
                             return;
                         }
+                        const messageType = messages[0].messageType;
+
+                        if (messageType === 'RenderCardRequest') {
+                            return;
+                        }
+
                         const updatedText = messages[0].text;
                         if (!updatedText || updatedText === replySoFar) {
                             return;
@@ -380,6 +439,7 @@ export default class BingAIClient {
                             return;
                         }
                         const messages = event.item?.messages || [];
+                        const throttling = event.item?.throttling || {};
                         const eventMessage = messages.length ? messages[messages.length - 1] : null;
                         if (event.item?.result?.error) {
                             if (this.debug) {
@@ -393,6 +453,7 @@ export default class BingAIClient {
                                 resolve({
                                     message: eventMessage,
                                     conversationExpiryTime: event?.item?.conversationExpiryTime,
+                                    throttling,
                                 });
                                 return;
                             }
@@ -427,6 +488,7 @@ export default class BingAIClient {
                         resolve({
                             message: eventMessage,
                             conversationExpiryTime: event?.item?.conversationExpiryTime,
+                            throttling,
                         });
                         // eslint-disable-next-line no-useless-return
                         return;
@@ -448,6 +510,7 @@ export default class BingAIClient {
         const {
             message: reply,
             conversationExpiryTime,
+            throttling,
         } = await messagePromise;
 
         const replyMessage = {
@@ -470,6 +533,7 @@ export default class BingAIClient {
             conversationExpiryTime,
             response: reply.text,
             details: reply,
+            throttling,
         };
 
         if (jailbreakConversationId) {

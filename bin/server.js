@@ -39,7 +39,7 @@ if (settings.storageFilePath && !settings.cacheOptions.store) {
     settings.cacheOptions.store = new KeyvFile({ filename: settings.storageFilePath });
 }
 
-const clientToUse = settings.apiOptions?.clientToUse || settings.clientToUse || 'chatgpt';
+const clientToUse = settings.apiOptions?.clientToUse || settings.clientToUse || 'bing';
 const perMessageClientOptionsWhitelist = settings.apiOptions?.perMessageClientOptionsWhitelist || null;
 
 const server = fastify();
@@ -89,10 +89,14 @@ server.post('/conversation', async (request, reply) => {
         let clientToUseForMessage = clientToUse;
         const clientOptions = filterClientOptions(body.clientOptions, clientToUseForMessage);
         if (clientOptions && clientOptions.clientToUse) {
+            if (['chat', 'compose'].includes(clientOptions.clientToUse)) {
+                clientOptions.clientToUse = `bing-${clientOptions.clientToUse}`;
+            }
             clientToUseForMessage = clientOptions.clientToUse;
             delete clientOptions.clientToUse;
         }
 
+        console.info('clientToUseForMessage', clientToUseForMessage);
         const messageClient = getClient(clientToUseForMessage);
 
         result = await messageClient.sendMessage(body.message, {
@@ -106,6 +110,7 @@ server.post('/conversation', async (request, reply) => {
             clientOptions,
             onProgress,
             abortController,
+            messageType: clientToUseForMessage.replace('bing-', ''),
         });
     } catch (e) {
         error = e;
@@ -163,6 +168,8 @@ function nextTick() {
 function getClient(clientToUseForMessage) {
     switch (clientToUseForMessage) {
         case 'bing':
+        case 'bing-chat':
+        case 'bing-compose':
             return new BingAIClient({ ...settings.bingAiClient, cache: settings.cacheOptions });
         case 'chatgpt-browser':
             return new ChatGPTBrowserClient(
