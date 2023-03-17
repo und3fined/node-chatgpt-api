@@ -319,9 +319,6 @@ export default class BingAIClient {
             }
         }
 
-
-
-
         const obj = {
             arguments: [
                 {
