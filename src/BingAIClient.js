@@ -444,6 +444,7 @@ export default class BingAIClient {
                         const messages = event.item?.messages || [];
                         const throttling = event.item?.throttling || {};
                         const eventMessage = messages.length ? messages[messages.length - 1] : null;
+                        const title = eventMessage ? eventMessage.text : '';
                         if (event.item?.result?.error) {
                             if (this.debug) {
                                 console.debug(event.item.result.value, event.item.result.message);
@@ -495,7 +496,7 @@ export default class BingAIClient {
                         }
 
                         resolve({
-                            title: event.text,
+                            title: title,
                             message: eventMessage,
                             conversationExpiryTime: event?.item?.conversationExpiryTime,
                             throttling,
