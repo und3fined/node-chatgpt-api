@@ -134,7 +134,7 @@ server.post('/conversation', async (request, reply) => {
     } else if (settings.apiOptions?.debug) {
         console.debug(error);
     }
-    const message = error?.data?.message || `There was an error communicating with ${clientToUse === 'bing' ? 'Bing' : 'ChatGPT'}.`;
+    const message = error?.data?.message || error?.message || `There was an error communicating with ${clientToUse === 'bing' ? 'Bing' : 'ChatGPT'}.`;
     if (body.stream === true) {
         reply.sse({
             id: '',
