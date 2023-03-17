@@ -374,6 +374,7 @@ export default class BingAIClient {
         const messagePromise = new Promise((resolve, reject) => {
             let replySoFar = '';
             let stopTokenFound = false;
+            let hasCardRequest = false;
 
             const messageTimeout = setTimeout(() => {
                 this.constructor.cleanupWebSocketConnection(ws);
@@ -412,13 +413,15 @@ export default class BingAIClient {
                         const messageType = messages[0].messageType;
 
                         if (messageType === 'RenderCardRequest') {
+                            hasCardRequest = true;
                             return;
                         }
 
                         const updatedText = messages[0].text;
-                        if (!updatedText || updatedText === replySoFar) {
+                        if (!updatedText || updatedText.length + 3 < replySoFar.length || updatedText === replySoFar) {
                             return;
                         }
+
                         // get the difference between the current text and the previous text
                         const difference = updatedText.substring(replySoFar.length);
                         onProgress(difference);
@@ -485,7 +488,14 @@ export default class BingAIClient {
                             // delete useless suggestions from moderation filter
                             delete eventMessage.suggestedResponses;
                         }
+
+                        if (hasCardRequest) {
+                            eventMessage.adaptiveCards[0].body[0].text = replySoFar;
+                            eventMessage.text = replySoFar;
+                        }
+
                         resolve({
+                            title: event.text,
                             message: eventMessage,
                             conversationExpiryTime: event?.item?.conversationExpiryTime,
                             throttling,
@@ -526,6 +536,7 @@ export default class BingAIClient {
         }
 
         const returnData = {
+            title: '',
             conversationId,
             conversationSignature,
             clientId,

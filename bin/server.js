@@ -96,7 +96,6 @@ server.post('/conversation', async (request, reply) => {
             delete clientOptions.clientToUse;
         }
 
-        console.info('clientToUseForMessage', clientToUseForMessage);
         const messageClient = getClient(clientToUseForMessage);
 
         result = await messageClient.sendMessage(body.message, {
