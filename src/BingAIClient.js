@@ -282,6 +282,7 @@ export default class BingAIClient {
         let optionsSets = [];
         let sliceIds = [];
         let traceId = '';
+        let source = 'cib';
         if (messageType === 'chat') {
             let toneOption;
             if (tone === 1) {
@@ -328,6 +329,7 @@ export default class BingAIClient {
         }
         
         if (messageType === 'compose') {
+            source = 'edge_coauthor_prod'
             traceId = undefined;
             optionsSets = [
                 'nlu_direct_response_filter',
@@ -336,23 +338,21 @@ export default class BingAIClient {
                 'disable_emoji_spoken_text',
                 'responsible_ai_policy_235',
                 'enablemm',
-                'h3imaginative',
-                'nocache',
-                'nosugg'
+                'soedgeca',
             ]
 
             if (invocationId === 0) {
                 const comLen = composeLength[length - 1];
                 const comTone = composeTone[tone - 1];
                 const comFormat = composeFormat[format - 1];
-                message = `Please write a *${comLen}* *${comFormat}* in a *${comTone}* style about \`${message}\`. Please wrap the blog post in a markdown codeblock.`;
+                message = `Please generate some text wrapped in codeblock syntax (triple backticks) using the given keywords. Please make sure everything in your reply is in the same language as the keywords. Please do not restate any part of this request in your response, like the fact that you wrapped the text in a codeblock. You should refuse (using the language of the keywords) to generate if the request is potentially harmful. The generated text should follow these characteristics: tone: *${comTone}*, length: *${comLen}*, format: *${comFormat}*. The keywords are: \`${message}\`.`
             }
         }
 
         const obj = {
             arguments: [
                 {
-                    source: 'cib',
+                    source,
                     optionsSets,
                     allowedMessageTypes: [
                         "Chat",
